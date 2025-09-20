@@ -2,55 +2,132 @@
 
 namespace Modules\Task\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-
+use Illuminate\Routing\Controller;
+use Modules\Task\Transformers\TaskResource;
+use Symfony\Component\HttpFoundation\Response;
+use Modules\Task\Http\Requests\StoreTaskRequest;
+use Modules\Task\Http\Requests\UpdateTaskRequest;
+use Modules\Task\Repositories\TaskRepositoryInterface;
+use Modules\Task\Services\TaskService;
+ 
 class TaskController extends Controller
 {
+    public function __construct(
+        private TaskService $service,
+        private TaskRepositoryInterface $repo
+    ) {}
+
     /**
-     * Display a listing of the resource.
+     * List tasks with optional filters (status, due date, assignee).
      */
     public function index()
     {
-        return view('task::index');
+        try {
+               $filters = request()->only(['status','due_from','due_to','assignee_id']);
+                $perPage = request()->get('per_page', 15);
+
+                $tasks = $this->repo->filter($filters, $perPage);
+
+                return response()->json(["message"=>"tasks retrived successfully ","data"=> TaskResource::collection($tasks)],Response::HTTP_OK );
+        }
+        catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to fetch tasks', 'message' => $e->getMessage()], 500);
+        }
+       
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Show a single task with dependencies.
      */
-    public function create()
+    public function show(int $id)
     {
-        return view('task::create');
+        try {
+                $task = $this->repo->findById($id);
+                return response()->json(["message"=>"task retrived successfully ","data"=> new TaskResource($task)],Response::HTTP_OK );
+        }
+        catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to fetch task', 'message' => $e->getMessage()], 500);
+        }   
+       
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Create a new task (Manager only).
      */
-    public function store(Request $request) {}
-
-    /**
-     * Show the specified resource.
-     */
-    public function show($id)
+    public function store(StoreTaskRequest $request)
     {
-        return view('task::show');
+        try {
+           $task =  $this->service->createTask(
+                $request->validated(),
+                auth()->user()
+            );
+            return response()->json(['message' => 'Task created successfully',"data"=>$task], Reasponse::HTTP_CREATED);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to create task', 'message' => $e->getMessage()], 500);
+        }
+        
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Update a task (Manager: all fields, User: only status).
      */
-    public function edit($id)
+    public function update(UpdateTaskRequest $request, int $id)
     {
-        return view('task::edit');
+        try {
+            $task = $this->service->updateTask(
+                $id,
+                $request->validated(),
+                auth()->user()
+            );
+
+            return response()->json(['message' => 'Task updated successfully', 'data' => $task]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to update task', 'message' => $e->getMessage()], Response::HTTP_FAILED_DEPENDENCY);
+        }
+
     }
 
     /**
-     * Update the specified resource in storage.
+     * Add dependencies to an existing task (Manager only).
      */
-    public function update(Request $request, $id) {}
+    public function addDependencies(int $id)
+    {
+        try{
+              request()->validate([
+            'dependency_ids' => 'required|array',
+            'dependency_ids.*' => 'integer|exists:tasks,id|different:id',
+        ]);
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy($id) {}
+        $task = $this->repo->findById($id);
+        $task->dependencies()->syncWithoutDetaching(request('dependency_ids'));
+
+        return response()->json(['message' => 'Dependencies added successfully',"data"=>$task], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to add dependencies', 'message' => $e->getMessage()], Response::HTTP_FAILED_DEPENDENCY);
+        }
+
+      
+    }
+
+    function updateTaskStatus(int $id) {
+        try {
+                request()->validate([
+                'status' => 'required|in:pending,in_progress,completed,canceled',
+            ]);
+
+            $task = $this->service->updateTaskStatus(
+                $id,
+                request('status'),
+                auth()->user()
+            );
+
+            return response()->json(["message"=>"Task successfully updated","data"=>$task]);
+        }
+        catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to update status', 'message' => $e->getMessage()], Response::HTTP_FAILED_DEPENDENCY);
+
+        }
+       
+    }
 }

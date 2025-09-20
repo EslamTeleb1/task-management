@@ -2,11 +2,13 @@
 
 namespace Modules\Task\Providers;
 
+use RecursiveIteratorIterator;
+use RecursiveDirectoryIterator;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
 use Nwidart\Modules\Traits\PathNamespace;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
+use Modules\Task\Repositories\TaskRepository;
+use Modules\Task\Repositories\TaskRepositoryInterface;
 
 class TaskServiceProvider extends ServiceProvider
 {
@@ -36,6 +38,8 @@ class TaskServiceProvider extends ServiceProvider
     {
         $this->app->register(EventServiceProvider::class);
         $this->app->register(RouteServiceProvider::class);
+        $this->app->bind(TaskRepositoryInterface::class,TaskRepository::class);
+
     }
 
     /**
