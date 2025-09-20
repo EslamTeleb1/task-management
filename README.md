@@ -22,8 +22,11 @@ Built with:
    php artisan key:generate
 
 4. Run migrations & seeders
-   php artisan migrate --seed
+
+     php artisan module:seed User 
+
    (This will create default roles (Manager, User) and seed sample users.)
+
 
 5. Serve the app
    php artisan serve
