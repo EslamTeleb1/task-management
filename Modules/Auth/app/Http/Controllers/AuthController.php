@@ -1,56 +1,30 @@
 <?php
-
 namespace Modules\Auth\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function login(Request $req)
     {
-        return view('auth::index');
-    }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+        $credentials = $req->only('email', 'password');
+
+        if (! Auth::attempt($credentials)) {
+            return response()->json(['message' => 'invalid credentials'], 401);
+        }
+        $user = Auth::user();
+
+        $token = $user->createToken('api-token')->plainTextToken;
+
+        return response()->json(['token' => $token, 'user' => $user]);
+    }
+    public function logout(Request $req)
     {
-        return view('auth::create');
+        $req->user()->currentAccessToken()->delete();
+        
+        return response()->json(['message' => 'logged out']);
     }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request) {}
-
-    /**
-     * Show the specified resource.
-     */
-    public function show($id)
-    {
-        return view('auth::show');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit($id)
-    {
-        return view('auth::edit');
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, $id) {}
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy($id) {}
 }
